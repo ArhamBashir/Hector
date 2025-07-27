@@ -4,6 +4,9 @@ import os
 
 # This is a bit of a trick to make the script able to import from the parent 'app' directory
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# This is a bit of a trick to make the script able to import from the parent 'app' directory
+# This is a bit of a trick to make the script able to import from the parent 'app' directory
+# This is a bit of a trick to make the script able to import from the parent 'app' directory
 
 from app.db.session import SessionLocal
 from app.db.models import MasterProduct
