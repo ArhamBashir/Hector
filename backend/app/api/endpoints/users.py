@@ -10,28 +10,36 @@ from ...core import security
 router = APIRouter()
 
 
-@router.post("/", response_model=schemas.User)
+@router.post("/", response_model=schemas.User, status_code=status.HTTP_201_CREATED)
 def create_user(user: schemas.UserCreate, db: Session = Depends(deps.get_db)):
     """
     Create a new user in the system.
     """
-    db_user = db.query(models.User).filter(models.User.email == user.email).first()
-    if db_user:
+    # 1) unique email check
+    if db.query(models.User).filter(models.User.email == user.email).first():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered",
         )
-    
+
+    # 2) hash password
     hashed_password = security.get_password_hash(user.password)
+
+    # 3) build model WITH names
     db_user = models.User(
         email=user.email,
+        first_name=user.first_name,
+        last_name=user.last_name,
         hashed_password=hashed_password,
-        role=user.role
+        role=user.role,
+        is_active=True,
     )
+
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
     return db_user
+
 
 @router.get("/", response_model=List[schemas.User])
 def read_users(

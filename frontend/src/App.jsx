@@ -9,6 +9,7 @@ import MainLayout from './components/layout/MainLayout';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import SourcerPage from './pages/SourcerPage';
+import SourcingPage from './pages/SourcingPage';
 import PurchaserPage from './pages/PurchaserPage';
 import RequestDetailPage from './pages/RequestDetailPage';
 import AdminUsersPage from './pages/AdminUsersPage';
@@ -38,6 +39,7 @@ function App() {
         >
           {/* Child routes of MainLayout */}
           <Route index element={<DashboardPage />} />
+          <Route path="sourcing/orders" element={<SourcingPage />} />
           <Route path="sourcing/new" element={<SourcerPage />} />
           <Route path="requests/pending" element={<PurchaserPendingPage />} />
           <Route path="requests/my" element={<PurchaserPage />} />

@@ -28,7 +28,7 @@ app.add_middleware(
 # A simple test endpoint to make sure the server is running
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to the SourceHub API"}
+    return {"message": "Welcome to the Retro Ventures API"}
 
 # Include the API routers
 app.include_router(auth.router, prefix="/api/v1", tags=["Authentication"])

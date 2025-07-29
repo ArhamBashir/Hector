@@ -1,12 +1,24 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Table, Button, Input, Modal, Form, Select, Space, message } from 'antd';
-import apiClient from '../api/client';
+import {
+  Table,
+  Button,
+  Input,
+  Modal,
+  Form,
+  Select,
+  Space,
+  message,
+  Typography,
+  Card
+} from 'antd';
 import { debounce } from 'lodash';
+import apiClient from '../api/client';
+import { motion } from 'framer-motion';
 
 const { Search } = Input;
 const { Option } = Select;
+const { Title } = Typography;
 
-// THIS CONSTANT WAS MISSING
 const initialFormState = {
   sku: '',
   product_name: '',
@@ -19,7 +31,6 @@ const AdminProductsPage = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ q: '' });
-  
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [form] = Form.useForm();
@@ -37,25 +48,27 @@ const AdminProductsPage = () => {
     fetchProducts();
   }, [fetchProducts]);
 
-  const debouncedSearch = useCallback(debounce(q => setFilters(prev => ({...prev, q})), 500), []);
-  
+  const debouncedSearch = useCallback(
+    debounce(q => setFilters(prev => ({ ...prev, q })), 500), []
+  );
+
   const handleOpenModal = (product = null) => {
     setEditingProduct(product);
     form.setFieldsValue(product || initialFormState);
     setIsModalOpen(true);
   };
-  
+
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingProduct(null);
     form.resetFields();
   };
-  
+
   const handleFormSubmit = async (values) => {
     const apiCall = editingProduct
       ? apiClient.put(`/products/${editingProduct.id}`, values)
       : apiClient.post('/products/', values);
-      
+
     try {
       await apiCall;
       message.success(`Product ${editingProduct ? 'updated' : 'created'} successfully!`);
@@ -65,7 +78,7 @@ const AdminProductsPage = () => {
       message.error('Error: Could not save product. SKU may be in use.');
     }
   };
-  
+
   const handleDelete = async (productId) => {
     if (window.confirm('Are you sure you want to delete this product?')) {
       try {
@@ -83,7 +96,12 @@ const AdminProductsPage = () => {
     { title: 'Name', dataIndex: 'product_name', key: 'product_name', sorter: (a, b) => a.product_name.localeCompare(b.product_name) },
     { title: 'Category', dataIndex: 'category', key: 'category' },
     { title: 'Type', dataIndex: 'product_type', key: 'product_type' },
-    { title: 'Target Cost', dataIndex: 'target_cost_per_unit', key: 'target_cost_per_unit', render: (cost) => `$${parseFloat(cost).toFixed(2)}` },
+    {
+      title: 'Target Cost',
+      dataIndex: 'target_cost_per_unit',
+      key: 'target_cost_per_unit',
+      render: (cost) => `$${parseFloat(cost).toFixed(2)}`
+    },
     {
       title: 'Actions',
       key: 'actions',
@@ -97,34 +115,64 @@ const AdminProductsPage = () => {
   ];
 
   return (
-    <div className="page-container">
-      <div className="header-actions">
-        <h2>Manage Master Products</h2>
-        <Button type="primary" onClick={() => handleOpenModal()}>Add New Product</Button>
-      </div>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      style={{ padding: '2rem' }}
+    >
+      <Card
+        style={{
+          background: 'linear-gradient(to right, #eef2ff, #dbeafe)',
+          borderRadius: '12px',
+          boxShadow: '0 8px 20px rgba(0, 0, 0, 0.05)',
+          padding: '2rem',
+          marginBottom: '2rem'
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Title level={3} style={{ margin: 0 }}>Manage Master Products</Title>
+          <motion.div whileHover={{ scale: 1.05 }}>
+            <Button type="primary" onClick={() => handleOpenModal()}>
+              Add New Product
+            </Button>
+          </motion.div>
+        </div>
 
-      <div className="filters-bar">
-        <Search
-          placeholder="Search by SKU or Name..."
-          onSearch={value => setFilters(prev => ({...prev, q: value}))}
-          onChange={e => debouncedSearch(e.target.value)}
-          style={{ width: 300 }}
-          allowClear
+        <div style={{ marginTop: '1rem' }}>
+          <Search
+            placeholder="Search by SKU or Name..."
+            onSearch={(value) => setFilters(prev => ({ ...prev, q: value }))}
+            onChange={(e) => debouncedSearch(e.target.value)}
+            style={{ width: 300 }}
+            allowClear
+            size="large"
+          />
+        </div>
+      </Card>
+
+      <Card style={{ borderRadius: '12px', boxShadow: '0 4px 14px rgba(0,0,0,0.05)' }}>
+        <Table
+          dataSource={products}
+          columns={columns}
+          rowKey="id"
+          loading={loading}
+          pagination={{ pageSize: 10 }}
         />
-      </div>
+      </Card>
 
-      <Table
-        dataSource={products}
-        columns={columns}
-        rowKey="id"
-        loading={loading}
-      />
-      
       <Modal
-        title={editingProduct ? 'Edit Product' : 'Add New Product'}
+        title={
+          <Title level={4} style={{ margin: 0 }}>
+            {editingProduct ? 'Edit Product' : 'Add New Product'}
+          </Title>
+        }
         open={isModalOpen}
         onCancel={handleCloseModal}
         footer={null}
+        centered
+        style={{ borderRadius: '10px' }}
+        bodyStyle={{ paddingTop: '1rem' }}
       >
         <Form form={form} layout="vertical" onFinish={handleFormSubmit}>
           <Form.Item label="SKU" name="sku" rules={[{ required: true }]}>
@@ -157,7 +205,7 @@ const AdminProductsPage = () => {
           </Form.Item>
         </Form>
       </Modal>
-    </div>
+    </motion.div>
   );
 };
 

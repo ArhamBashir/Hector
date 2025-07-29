@@ -1,215 +1,376 @@
-import React, { useState, useEffect } from 'react';
-import { Form, Input, Button, Select, InputNumber, Table, message, AutoComplete, Statistic, Card, Space } from 'antd';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Form,
+  Input,
+  Button,
+  Select,
+  InputNumber,
+  Table,
+  message,
+  Statistic,
+  Card,
+  Row,
+  Col,
+  Typography
+} from 'antd';
+import { motion } from 'framer-motion';
 import { DeleteOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import { debounce } from 'lodash';
 
 const { Option } = Select;
+const { Title, Text } = Typography;
+
+const gradientStyle = {
+  background: 'linear-gradient(to right, #f8fbff, #e0f2fe)',
+  borderRadius: '12px',
+  padding: '1rem',
+  marginBottom: '1rem',
+  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.06)'
+};
 
 const SourcerPage = () => {
   const [form] = Form.useForm();
   const [cartItems, setCartItems] = useState([]);
   const [searchResults, setSearchResults] = useState([]);
-  const [selectedProduct, setSelectedProduct] = useState(null);
   const [efficiency, setEfficiency] = useState(0);
-  const [loading, setLoading] = useState(false);
-
-  // --- NEW: Use Form.useWatch to get reactive values for the total costs ---
+  const [createdOn, setCreatedOn] = useState(null);
   const totals = Form.useWatch('totals', form);
+  const navigate = useNavigate();
 
-  // --- NEW: useEffect to automatically calculate efficiency and distribute costs ---
+  // ---------- Efficiency + prorate ----------
   useEffect(() => {
     if (!totals || cartItems.length === 0) {
       setEfficiency(0);
       return;
     }
 
-    const totalActualCost = (totals.sellers_price || 0) + (totals.shipping_price || 0) + (totals.tax || 0);
-    
-    const totalTargetCost = cartItems.reduce((acc, item) => {
-        return acc + ((item.target_cost_per_unit || 0) * item.quantity_needed);
-    }, 0);
+    const totalActualCost =
+      (totals.sellers_price || 0) +
+      (totals.shipping_price || 0) +
+      (totals.tax || 0);
 
-    // 1. Calculate and set efficiency
-    setEfficiency(totalTargetCost - totalActualCost);
+    const totalTargetCost = cartItems.reduce(
+      (acc, item) =>
+        acc + ((item.target_cost_per_unit || 0) * item.quantity_needed),
+      0
+    );
 
-    // 2. Distribute the totalActualCost across cart items based on their target_cost
+    const eff = totalTargetCost - totalActualCost;
+    setEfficiency(eff);
+
     if (totalTargetCost > 0) {
       const costRatio = totalActualCost / totalTargetCost;
-      const updatedCart = cartItems.map(item => ({
-        ...item,
-        // Formula: Prorate the total cost to this item based on its target cost
-        sourced_price: (item.target_cost_per_unit || 0) * costRatio
-      }));
-      // Only update state if prices have actually changed to prevent infinite loops
-      if (JSON.stringify(updatedCart) !== JSON.stringify(cartItems)) {
-        setCartItems(updatedCart);
-      }
-    }
-
-  }, [totals, cartItems]); // Reruns when totals or cartItems change
-
-  const searchProducts = async (query) => {
-    if (query.length < 2) {
-      setSearchResults([]);
-      return;
-    }
-    try {
-      const response = await apiClient.get('/products/', { params: { q: query } });
-      setSearchResults(response.data.map(p => ({
-        value: p.product_name,
-        label: `${p.sku} - ${p.product_name}`,
-        product: p,
-      })));
-    } catch (error) {
-      console.error("Failed to search products", error);
-    }
-  };
-
-  const debouncedSearch = debounce(searchProducts, 300);
-
-  const handleSelectProduct = (value, option) => {
-    setSelectedProduct(option.product);
-  };
-  
-  const handleAddToCart = () => {
-      if (!selectedProduct) {
-          message.error("Please select a product first.");
-          return;
-      }
-      if (cartItems.some(item => item.id === selectedProduct.id)) {
-          message.warning("This product is already in the cart.");
-          return;
-      }
-      
-      const newCartItem = {
-          ...selectedProduct,
-          quantity_needed: 1,
-          sourced_price: 0, // Will be recalculated by useEffect
-      };
-      setCartItems(prevItems => [...prevItems, newCartItem]);
-      setSelectedProduct(null);
-      form.setFieldsValue({ search: '' }); 
-  };
-  
-  const handleCartChange = (id, field, value) => {
-      const updatedCart = cartItems.map(item => 
-          item.id === id ? { ...item, [field]: value } : item
+      setCartItems(prev =>
+        prev.map(item => ({
+          ...item,
+          sourced_price: (item.target_cost_per_unit || 0) * costRatio
+        }))
       );
-      setCartItems(updatedCart);
+    }
+  }, [totals, cartItems.length]); // only re-run when length changes to avoid loops
+
+  // ---------- Search ----------
+  const fetchProducts = async (query) => {
+    if (!query || query.length < 2) return;
+    try {
+      const { data } = await apiClient.get('/products/', { params: { q: query } });
+      const options = data.map(p => ({
+        value: p.id.toString(),
+        label: `${p.sku} - ${p.product_name}`,
+        product: p
+      }));
+      setSearchResults(options);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const debouncedSearch = useMemo(
+    () => debounce(fetchProducts, 300),
+    []
+  );
+
+  // Add one product
+  const addToCart = (product) => {
+    setCartItems(prev => {
+      if (prev.some(i => i.id === product.id)) {
+        message.warning('Product already in cart');
+        return prev;
+      }
+      return [
+        ...prev,
+        {
+          ...product,
+          quantity_needed: 1,
+          sourced_price: 0
+        }
+      ];
+    });
+  };
+
+  // When user selects multiple at once
+  const handleMultiSelectChange = (_values, options) => {
+    options.forEach(opt => addToCart(opt.product));
+    // clear select so you can search again cleanly
+    form.setFieldsValue({ search: [] });
+  };
+
+  // ---------- Cart handlers ----------
+  const handleCartChange = (id, field, value) => {
+    setCartItems(prev =>
+      prev.map(item => (item.id === id ? { ...item, [field]: value } : item))
+    );
   };
 
   const handleRemoveFromCart = (id) => {
-      setCartItems(cartItems.filter(item => item.id !== id));
+    setCartItems(prev => prev.filter(item => item.id !== id));
   };
-  
+
+  // ---------- Submit ----------
   const handleSubmit = async (values) => {
-    if (cartItems.length === 0) {
-        message.error("Please add at least one item to the cart.");
-        return;
-    }
-    setLoading(true);
-    
-    // Use the `sourced_price` from the state, which is automatically calculated
-    const itemsToSubmit = cartItems.map(item => ({
-        product_name: item.product_name,
-        sku: item.sku,
-        quantity_needed: item.quantity_needed,
-        sourced_price: parseFloat(item.sourced_price.toFixed(2)), // Ensure it's a 2-decimal number
-        product_type: item.product_type,
-        category: item.category,
-        // sourcer_remarks could be added here if there was an input for it
+    if (cartItems.length === 0) return message.error('Cart is empty');
+
+    const items = cartItems.map(item => ({
+      product_name: item.product_name,
+      sku: item.sku,
+      quantity_needed: item.quantity_needed,
+      sourced_price: Number(item.sourced_price.toFixed(2)),
+      product_type: item.product_type,
+      category: item.category
     }));
-    
+
     const payload = {
-        ...values.header,
-        ...values.totals,
-        items: itemsToSubmit,
+      ...values.header,
+      ...values.totals,
+      items
     };
-    
+
     try {
-      const response = await apiClient.post('/sourcing/', payload);
-      message.success(`Successfully created Sourcing ID: ${response.data.id}`);
+      const res = await apiClient.post('/sourcing/', payload);
+      message.success(`Created sourcing ID: ${res.data.id}`);
+
+      const created = res.data.created_on || res.data.created_at;
+      if (created) {
+        const formatted = new Date(created).toLocaleString();
+        setCreatedOn(formatted);
+        message.info(`Created On: ${formatted}`);
+      }
+
       form.resetFields();
       setCartItems([]);
-    } catch (error) {
-      message.error('Failed to create sourcing request.');
-    } finally {
-      setLoading(false);
+      setSearchResults([]);
+
+      setTimeout(() => {
+        setCreatedOn(null);
+        navigate('/'); // adjust to your route
+      }, 2500);
+    } catch (err) {
+      console.error('API error:', err.response?.data || err.message);
+      message.error('Submission failed');
     }
   };
-  
+
   const cartColumns = [
-      { title: 'Name', dataIndex: 'product_name' },
-      { title: 'SKU', dataIndex: 'sku' },
-      { title: 'Target Cost', dataIndex: 'target_cost_per_unit', render: (val) => `$${val ? parseFloat(val).toFixed(2) : '0.00'}` },
-      { title: 'Qty', dataIndex: 'quantity_needed', render: (val, record) => 
-          <InputNumber min={1} value={val} onChange={(value) => handleCartChange(record.id, 'quantity_needed', value)} />
-      },
-      // --- MODIFIED: This input is now disabled and its value is calculated automatically ---
-      { title: 'Seller Price', dataIndex: 'sourced_price', render: (val) => 
-        <InputNumber 
-            disabled 
-            value={val ? parseFloat(val).toFixed(2) : '0.00'}
-            prefix="$" 
-            style={{ width: '100%' }}
+    {
+      title: 'Product',
+      dataIndex: 'product_name',
+      render: (text, record) => (
+        <div>
+          <strong>{text}</strong><br />
+          <Text type="secondary" style={{ fontSize: '0.75rem' }}>{record.sku}</Text>
+        </div>
+      )
+    },
+    {
+      title: 'Qty',
+      dataIndex: 'quantity_needed',
+      render: (val, record) => (
+        <InputNumber
+          min={1}
+          size="small"
+          value={val}
+          onChange={(value) =>
+            handleCartChange(record.id, 'quantity_needed', Number(value))
+          }
         />
-      },
-      { title: 'Action', render: (_, record) => 
-          <Button icon={<DeleteOutlined />} danger onClick={() => handleRemoveFromCart(record.id)} /> 
-      },
+      )
+    },
+    {
+      title: 'Target $',
+      dataIndex: 'target_cost_per_unit',
+      render: val => `$${val ? Number(val).toFixed(2) : '0.00'}`
+    },
+    {
+      title: 'Seller $',
+      dataIndex: 'sourced_price',
+      render: val => (
+        <InputNumber
+          disabled
+          size="small"
+          value={Number(val).toFixed(2)}
+          prefix="$"
+        />
+      )
+    },
+    {
+      title: '',
+      render: (_, record) => (
+        <Button
+          size="small"
+          icon={<DeleteOutlined />}
+          danger
+          onClick={() => handleRemoveFromCart(record.id)}
+        />
+      )
+    }
   ];
 
   return (
-    <div className="page-container">
-      {/* REMOVED onValuesChange prop from Form, as useEffect handles it now */}
+    <div style={{ padding: '1.5rem', background: '#f4f9ff', borderRadius: '10px' }}>
       <Form form={form} layout="vertical" onFinish={handleSubmit}>
-        <div className="header-actions">
-          <h2 style={{margin: 0}}>New Sourcing Order</h2>
-          <Button type="primary" htmlType="submit" loading={loading}>Create Order</Button>
-        </div>
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+          <Title level={3}>New Sourcing Order</Title>
+        </motion.div>
 
-        <Card style={{ marginBottom: '1.5rem' }}>
-          <div className="form-grid">
-            <Form.Item label="Listing Link" name={['header', 'listing_link']}><Input /></Form.Item>
-            <Form.Item label="Seller Name" name={['header', 'seller_name']}><Input /></Form.Item>
-            <Form.Item label="Marketplace" name={['header', 'market']} initialValue="eBay"><Select><Option value="Mercari">Mercari</Option><Option value="eBay">eBay</Option><Option value="Facebook">Facebook</Option><Option value="Etsy">Etsy</Option></Select></Form.Item>
-            <Form.Item label="Origin" name={['header', 'origin']}><Input /></Form.Item>
-          </div>
+        {/* Header */}
+        <Card style={gradientStyle}>
+          <Row gutter={[12, 12]}>
+            <Col xs={24} sm={12} md={6}>
+              <Form.Item name={['header', 'listing_link']} label="Listing Link">
+                <Input size="small" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12} md={6}>
+              <Form.Item name={['header', 'seller_name']} label="Seller Name">
+                <Input size="small" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12} md={6}>
+              <Form.Item name={['header', 'market']} label="Marketplace" initialValue="eBay">
+                <Select size="small">
+                  <Option value="eBay">eBay</Option>
+                  <Option value="Mercari">Mercari</Option>
+                  <Option value="Facebook">Facebook</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12} md={6}>
+              <Form.Item name={['header', 'origin']} label="Origin">
+                <Input size="small" />
+              </Form.Item>
+            </Col>
+          </Row>
         </Card>
 
-        <Card title="Product Cart">
-            <Space.Compact style={{ width: '100%', marginBottom: '1rem' }}>
-                <Form.Item name="search" style={{width: '100%', marginBottom: 0}}>
-                    <AutoComplete
-                        options={searchResults}
-                        onSearch={debouncedSearch}
-                        onSelect={(_, option) => handleSelectProduct(_, option)}
-                        placeholder="Search Master Products by SKU or Name..."
-                        allowClear
-                    />
-                </Form.Item>
-                <Button type="primary" onClick={handleAddToCart}>Add to Cart</Button>
-            </Space.Compact>
-            <Table columns={cartColumns} dataSource={cartItems} rowKey="id" pagination={false} />
+        {/* Search + Efficiency */}
+        <Card style={gradientStyle}>
+          <Row gutter={[16, 16]} align="middle">
+            <Col xs={24} sm={16}>
+              <Form.Item name="search" noStyle>
+                <Select
+                  mode="multiple"
+                  showSearch
+                  allowClear
+                  size="large"
+                  style={{ width: '100%' }} 
+                  placeholder="Search SKU or Name..."
+                  onSearch={debouncedSearch}
+                  options={searchResults}
+                  filterOption={false}
+                  onChange={handleMultiSelectChange}
+                  value={[]}   // always clear selected tags after add
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Statistic
+                title="Efficiency"
+                prefix="$"
+                value={efficiency}
+                precision={2}
+                valueStyle={{ color: efficiency >= 0 ? 'green' : 'red' }}
+              />
+            </Col>
+          </Row>
         </Card>
-        
-        <Card style={{ marginTop: '1.5rem' }}>
-            <div className="form-grid" style={{ alignItems: 'center' }}>
-                <Form.Item label="Total Seller's Price ($)" name={['totals', 'sellers_price']} initialValue={0}>
-                    <InputNumber step="0.01" style={{width: '100%'}} />
-                </Form.Item>
-                <Form.Item label="Total Shipping ($)" name={['totals', 'shipping_price']} initialValue={0}>
-                    <InputNumber step="0.01" style={{width: '100%'}} />
-                </Form.Item>
-                <Form.Item label="Total Taxes ($)" name={['totals', 'tax']} initialValue={0}>
-                    <InputNumber step="0.01" style={{width: '100%'}} />
-                </Form.Item>
-                <Form.Item label="Calculated Efficiency">
-                    <Statistic value={efficiency} precision={2} prefix="$" />
-                </Form.Item>
-            </div>
+
+        {/* Cart */}
+        <Card style={gradientStyle}>
+          <Table
+            size="small"
+            columns={cartColumns}
+            dataSource={cartItems}
+            rowKey="id"
+            pagination={false}
+          />
         </Card>
+
+        {/* Totals */}
+        <Card style={gradientStyle}>
+          <Row gutter={[12, 12]}>
+            <Col xs={24} sm={8}>
+              <Form.Item name={['totals', 'sellers_price']} label="Seller Price ($)" initialValue={0}>
+                <InputNumber step={0.01} style={{ width: '100%' }} size="small" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Form.Item name={['totals', 'shipping_price']} label="Shipping ($)" initialValue={0}>
+                <InputNumber step={0.01} style={{ width: '100%' }} size="small" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Form.Item name={['totals', 'tax']} label="Taxes ($)" initialValue={0}>
+                <InputNumber step={0.01} style={{ width: '100%' }} size="small" />
+              </Form.Item>
+            </Col>
+          </Row>
+        </Card>
+
+        {/* Created On Banner */}
+        {createdOn && (
+          <Card
+            style={{
+              ...gradientStyle,
+              background: '#e6f7ff',
+              border: '1px solid #91d5ff',
+              textAlign: 'center'
+            }}
+          >
+            <Text strong style={{ fontSize: '16px' }}>
+              Created On: <span style={{ color: '#096dd9' }}>{createdOn}</span>
+            </Text>
+          </Card>
+        )}
+
+{/* Sticky Submit Button */}
+<motion.div
+  initial={{ opacity: 0, y: 20 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ delay: 0.4 }}
+  style={{
+    position: 'fixed',
+    bottom: '24px',
+    right: '32px',
+    zIndex: 999,
+  }}
+>
+  <Button
+    type="primary"
+    htmlType="submit"
+    size="large"
+    style={{
+      padding: '0.75rem 2rem',
+      fontWeight: 600,
+      borderRadius: '8px',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+    }}
+  >
+    Create Order
+  </Button>
+</motion.div>
+
       </Form>
     </div>
   );
