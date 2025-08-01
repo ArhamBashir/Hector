@@ -20,11 +20,20 @@ const { Option } = Select;
 const { Title } = Typography;
 
 const initialFormState = {
-  sku: '',
+  uid: '',
   product_name: '',
-  target_cost_per_unit: 0,
+  type_code: '',
+  brnd_cod: '',
+  model_code: '',
+  abbr_code: '',
+  color_code: '',
+  cnd_code: '',
+  sku: '',
+  regular_price: 0,
+  price: 0,
   category: '',
   product_type: 'Game',
+  target_cost_per_unit: 0,
 };
 
 const AdminProductsPage = () => {
@@ -34,6 +43,7 @@ const AdminProductsPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [form] = Form.useForm();
+  const [generatedSku, setGeneratedSku] = useState('');
 
   const fetchProducts = useCallback(() => {
     setLoading(true);
@@ -49,12 +59,31 @@ const AdminProductsPage = () => {
   }, [fetchProducts]);
 
   const debouncedSearch = useCallback(
-    debounce(q => setFilters(prev => ({ ...prev, q })), 500), []
+    debounce(q => setFilters(prev => ({ ...prev, q })), 500),
+    []
   );
+
+  const generateSku = () => {
+    const values = form.getFieldsValue();
+    const { type_code, brnd_cod, model_code, abbr_code, color_code, cnd_code, uid } = values;
+    if (type_code && brnd_cod && model_code && abbr_code && color_code && cnd_code && uid) {
+      const sku = `${type_code}-${brnd_cod}-${model_code}-${abbr_code}-${color_code}-${cnd_code}-${uid}`;
+      setGeneratedSku(sku);
+      form.setFieldValue('sku', sku);
+    } else {
+      setGeneratedSku('');
+      form.setFieldValue('sku', '');
+    }
+  };
 
   const handleOpenModal = (product = null) => {
     setEditingProduct(product);
     form.setFieldsValue(product || initialFormState);
+    if (product) {
+      setGeneratedSku(product.sku || '');
+    } else {
+      setGeneratedSku('');
+    }
     setIsModalOpen(true);
   };
 
@@ -62,6 +91,7 @@ const AdminProductsPage = () => {
     setIsModalOpen(false);
     setEditingProduct(null);
     form.resetFields();
+    setGeneratedSku('');
   };
 
   const handleFormSubmit = async (values) => {
@@ -174,19 +204,27 @@ const AdminProductsPage = () => {
         style={{ borderRadius: '10px' }}
         bodyStyle={{ paddingTop: '1rem' }}
       >
-        <Form form={form} layout="vertical" onFinish={handleFormSubmit}>
-          <Form.Item label="SKU" name="sku" rules={[{ required: true }]}>
-            <Input />
+        <Form form={form} layout="vertical" onFinish={handleFormSubmit} onValuesChange={generateSku}>
+          <Form.Item label="UID" name="uid" rules={[{ required: true }]}><Input /></Form.Item>
+          <Form.Item label="Product Name" name="product_name" rules={[{ required: true }]}><Input /></Form.Item>
+          <Form.Item label="Type Code" name="type_code" rules={[{ required: true }]}><Input /></Form.Item>
+          <Form.Item label="Brand Code" name="brnd_cod" rules={[{ required: true }]}><Input /></Form.Item>
+          <Form.Item label="Model Code" name="model_code" rules={[{ required: true }]}><Input /></Form.Item>
+          <Form.Item label="Abbr Code" name="abbr_code" rules={[{ required: true }]}><Input /></Form.Item>
+          <Form.Item label="Color Code" name="color_code" rules={[{ required: true }]}><Input /></Form.Item>
+          <Form.Item label="Condition Code" name="cnd_code" rules={[{ required: true }]}><Input /></Form.Item>
+          <Form.Item label="SKU" name="sku">
+            <Input disabled placeholder="Auto-generated SKU" />
           </Form.Item>
-          <Form.Item label="Product Name" name="product_name" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item label="Category" name="category" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item label="Target Cost ($)" name="target_cost_per_unit" rules={[{ required: true }]}>
-            <Input type="number" step="0.01" />
-          </Form.Item>
+          {generatedSku && (
+            <div style={{ marginBottom: 10, color: '#1890ff' }}>
+              Generated SKU: <strong>{generatedSku}</strong>
+            </div>
+          )}
+          <Form.Item label="Regular Price" name="regular_price" rules={[{ required: true }]}><Input type="number" step="0.01" /></Form.Item>
+          <Form.Item label="Price" name="price" rules={[{ required: true }]}><Input type="number" step="0.01" /></Form.Item>
+          <Form.Item label="Target Cost ($)" name="target_cost_per_unit" rules={[{ required: true }]}><Input type="number" step="0.01" /></Form.Item>
+          <Form.Item label="Category" name="category" rules={[{ required: true }]}><Input /></Form.Item>
           <Form.Item label="Product Type" name="product_type" rules={[{ required: true }]}>
             <Select>
               <Option value="Accessory">Accessory</Option>

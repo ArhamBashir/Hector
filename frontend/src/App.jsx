@@ -8,12 +8,14 @@ import PurchaserPendingPage from './pages/PurchaserPendingPage';
 import MainLayout from './components/layout/MainLayout';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
-import SourcerPage from './pages/SourcerPage';
+// import SourcerPage from './pages/SourcingFormPage';
 import SourcingPage from './pages/SourcingPage';
 import PurchaserPage from './pages/PurchaserPage';
 import RequestDetailPage from './pages/RequestDetailPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import AdminProductsPage from './pages/AdminProductsPage';
+import SourcingFormPage from './pages/SourcingFormPage';
+
 
 // Common Components and Styles
 import ProtectedRoute from './components/common/ProtectedRoute';
@@ -40,7 +42,8 @@ function App() {
           {/* Child routes of MainLayout */}
           <Route index element={<DashboardPage />} />
           <Route path="sourcing/orders" element={<SourcingPage />} />
-          <Route path="sourcing/new" element={<SourcerPage />} />
+          <Route path="sourcing/new" element={<SourcingFormPage />} />
+          <Route path="sourcing/:orderId/edit" element={<SourcingFormPage />} />
           <Route path="requests/pending" element={<PurchaserPendingPage />} />
           <Route path="requests/my" element={<PurchaserPage />} />
           <Route path="requests/:sourcingId" element={<RequestDetailPage />} />

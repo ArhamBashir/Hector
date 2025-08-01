@@ -50,7 +50,7 @@ def read_master_products(
     Retrieve master products with optional search and filtering. 
     Accessible by admins and sourcers.
     """
-    if current_user.role not in [models.UserRole.admin, models.UserRole.sourcer]:
+    if current_user.role not in [models.UserRole.admin, models.UserRole.sourcer, models.UserRole.purchaser]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions",
